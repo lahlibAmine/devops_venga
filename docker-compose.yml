@@ -1,0 +1,125 @@
+version: '3.6'
+services:
+    core-discovery-ms:
+        image: dockreg.app.royalairmaroc.com:5000/core/tst/core-discovery-ms
+        container_name: core-discovery-ctnr
+        environment:
+            - _JAVA_OPTIONS=-Xmx512m -Xms256m
+        ports:
+            - '8761:8761'
+        restart: unless-stopped
+        dns:
+            - 10.2.254.11
+            - 10.1.254.13
+        extra_hosts:
+            - "vtg-test.royalairmaroc.com:10.2.16.136"
+            
+    core-config-ms:
+        image: dockreg.app.royalairmaroc.com:5000/core/tst/core-config-ms
+        container_name: core-config-ctnr
+        healthcheck:
+          test: "exit 0" 
+        depends_on:
+            - core-discovery-ms   
+        environment:
+            - _JAVA_OPTIONS=-Xmx512m -Xms256m
+            - EUREKA_URI=core-discovery-ctnr
+        ports:
+            - '8012:8012'
+        volumes:
+            - /app/vtg/config:/appconf
+        dns:
+            - 10.2.254.11
+            - 10.1.254.13
+        extra_hosts:
+            - "vtg-test.royalairmaroc.com:10.2.16.136"
+
+    # Wait for config server to be joinable.
+    #check-config-started: 
+    #  image: jwilder/dockerize:0.6.1
+    #  depends_on:
+    #      - core-config-ms
+    #  command: 'dockerize -wait=http://core-config-ctnr'
+
+    core-gateway-ms:
+        image: dockreg.app.royalairmaroc.com:5000/core/tst/core-gateway-ms
+        container_name: core-gateway-ctnr
+        restart: unless-stopped
+        depends_on:
+            #- check-config-started
+          core-config-ms:
+            condition: service_healthy
+        environment:
+            - _JAVA_OPTIONS=-Xmx512m -Xms256m
+            - EUREKA_URI=core-discovery-ctnr
+            - ENV_URI=http://vtg-test.royalairmaroc.com
+        ports:
+            - '8091:8091'
+        volumes:
+            - /app/vtg/jks:/etc/ssl/certs/java
+        dns:
+            - 10.2.254.11
+            - 10.1.254.13
+        extra_hosts:
+            - "vtg-test.royalairmaroc.com:10.2.16.136"
+
+    core-bextractor-ms:
+        image: dockreg.app.royalairmaroc.com:5000/core/tst/core-bextractor-ms
+        container_name: core-bextractor-ctnr
+        restart: unless-stopped
+        depends_on:
+            #- check-config-started
+          core-config-ms:
+            condition: service_healthy
+        environment:
+            - _JAVA_OPTIONS=-Xmx5120m -Xms256m
+            - EUREKA_URI=core-discovery-ctnr
+            - CONF_URL=http://core-config-ctnr
+            - ENV_URI=http://vtg-test.royalairmaroc.com
+            - JDBC_DATABASE_URL=jdbc:postgresql://vtgt.db.royalairmaroc.com:5432/vtgt
+            - JDBC_DATABASE_USERNAME=vtgadm
+            - JDBC_DATABASE_PASSWORD=vtgVTG11
+            - KEYCLOAK_URI=https://vtg-test.royalairmaroc.com
+            - org.springframework.web.log.level= INFO
+            - ENV=rec
+        ports:
+            - '8082:8082'
+        volumes:
+            - /app/vtg/resources:/appResources
+            - /app/vtg/jks:/etc/ssl/certs/java  
+        dns:
+            - 10.2.254.11
+            - 10.1.254.13
+        extra_hosts:
+            - "vtg-test.royalairmaroc.com:10.2.16.136"
+    
+    venga-business-ms:
+        image: dockreg.app.royalairmaroc.com:5000/vtg/tst/ram-vtg-ms
+        container_name: venga-business-ctnr
+        restart: unless-stopped
+        depends_on:
+            #- check-config-started
+          core-config-ms:
+            condition: service_healthy
+        environment:
+            - _JAVA_OPTIONS=-Xmx512m -Xms256m
+            - EUREKA_URI=core-discovery-ctnr
+            - CONF_URL=http://core-config-ctnr
+            - ENV_URI=http://vtg-test.royalairmaroc.com
+            - JDBC_DATABASE_URL=jdbc:postgresql://vtgt.db.royalairmaroc.com:5432/vtgt
+            - JDBC_DATABASE_USERNAME=vtgadm
+            - JDBC_DATABASE_PASSWORD=vtgVTG11
+            - KEYCLOAK_URI=https://vtg-test.royalairmaroc.com
+            - org.springframework.web.log.level= INFO
+            - ENV=rec
+        ports:
+            - '8090:8090'
+        volumes:
+            - /app/vtg/log:/applog
+            - /app/vtg/jks:/etc/ssl/certs/java
+            - /app/vtg/resources:/appResources
+        dns:
+            - 10.2.254.11
+            - 10.1.254.13
+        extra_hosts:
+            - "vtg-test.royalairmaroc.com:10.2.16.136"
